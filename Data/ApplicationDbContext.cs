@@ -1,6 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using UserManagerApi.Models;
-using UserManagerApi.Models;
 
 namespace UserManagerApi.Data;
 
@@ -12,4 +11,17 @@ public class ApplicationDbContext : DbContext
     }
 
     public DbSet<User> Users { get; set; }
+    public DbSet<Role> Roles { get; set; }
+    public DbSet<Category> Categories { get; set; }
+    public DbSet<Brand> Brands { get; set; }
+    public DbSet<Product> Products { get; set; }
+    public DbSet<Order> Orders { get; set; }
+    public DbSet<OrderItem> OrderItems { get; set; }
+    public DbSet<Repair> Repairs { get; set; }
+    public DbSet<Review> Reviews { get; set; }
+    public DbSet<Favorite> Favorites { get; set; }
+    public DbSet<News> News { get; set; }
+    public DbSet<Message> Messages { get; set; }
+    public DbSet<RepairHistory> RepairHistory { get; set; }
+    public DbSet<AdminLog> AdminLogs { get; set; }
 }
