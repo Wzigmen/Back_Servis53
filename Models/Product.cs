@@ -36,4 +36,10 @@ public class Product
 
     [Column("created_at")]
     public DateTime CreatedAt { get; set; }
+
+    [ForeignKey(nameof(CategoryId))]
+    public Category? Category { get; set; }
+
+    [ForeignKey(nameof(BrandId))]
+    public Brand? Brand { get; set; }
 }
