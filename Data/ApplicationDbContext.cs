@@ -11,6 +11,11 @@ public class ApplicationDbContext : DbContext
     }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<User>()
+            .HasOne(u => u.Role)
+            .WithMany()
+            .HasForeignKey(u => u.RoleId);
+
         modelBuilder.Entity<Product>()
             .HasOne(p => p.Category)
             .WithMany()
