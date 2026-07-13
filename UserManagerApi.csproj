@@ -22,6 +22,7 @@
 	<ItemGroup>
 	  <Folder Include="Helpers\" />
 	  <Folder Include="Middleware\" />
+	  <Folder Include="wwwroot\images\avatars\" />
 	</ItemGroup>
 
 </Project>

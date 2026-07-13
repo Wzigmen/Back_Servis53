@@ -28,11 +28,14 @@ public class Product
     [Column("quantity")]
     public int Quantity { get; set; }
 
-    [Column("image")]
-    public string? Image { get; set; }
-
     [Column("warranty_months")]
     public int? WarrantyMonths { get; set; }
+
+    [Column("is_active")]
+    public bool IsActive { get; set; }
+
+    [Column("is_featured")]
+    public bool IsFeatured { get; set; }
 
     [Column("created_at")]
     public DateTime CreatedAt { get; set; }
@@ -42,4 +45,16 @@ public class Product
 
     [ForeignKey(nameof(BrandId))]
     public Brand? Brand { get; set; }
+
+    // Галерея изображений
+    public ICollection<ProductImage> Images { get; set; } = new List<ProductImage>();
+
+    // Характеристики
+    public PhoneSpec? PhoneSpec { get; set; }
+
+    public LaptopSpec? LaptopSpec { get; set; }
+
+    public PcSpec? PcSpec { get; set; }
+
+    public HeadphoneSpec? HeadphoneSpec { get; set; }
 }

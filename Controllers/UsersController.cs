@@ -1,5 +1,8 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System;
+using System.Security.Claims;
 using UserManagerApi.Data;
 using UserManagerApi.Models;
 
@@ -10,10 +13,12 @@ namespace UserManagerApi.Controllers;
 public class UsersController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
+    private readonly IWebHostEnvironment _environment;
 
-    public UsersController(ApplicationDbContext context)
+    public UsersController(ApplicationDbContext context, IWebHostEnvironment environment)
     {
         _context = context;
+        _environment = environment;
     }
 
     // Получить всех пользователей
@@ -82,6 +87,57 @@ public class UsersController : ControllerBase
         await _context.SaveChangesAsync();
 
         return NoContent();
+    }
+
+    [HttpPost("avatar")]
+    [Authorize]
+    public async Task<IActionResult> UploadAvatar(IFormFile file)
+    {
+        if (file == null || file.Length == 0)
+            return BadRequest();
+
+        var userId = int.Parse(
+            User.FindFirstValue(ClaimTypes.NameIdentifier)!
+        );
+
+        var user = await _context.Users.FindAsync(userId);
+
+        if (user == null)
+            return NotFound();
+
+        var extension = Path.GetExtension(file.FileName);
+
+        var fileName = $"{userId}{extension}";
+
+        var folder = Path.Combine(
+            _environment.WebRootPath,
+            "images",
+            "avatars"
+        );
+
+        Directory.CreateDirectory(folder);
+
+        var path = Path.Combine(folder, fileName);
+
+        using (var stream = new FileStream(path, FileMode.Create))
+        {
+            await file.CopyToAsync(stream);
+        }
+
+        user.Avatar = fileName;
+
+        await _context.SaveChangesAsync();
+
+        // проверяем , что пользователь имеет claim
+        foreach (var claim in User.Claims)
+        {
+            Console.WriteLine($"{claim.Type} = {claim.Value}");
+        }
+
+        return Ok(new
+        {
+            avatar = fileName
+        });
     }
 
     private async Task<bool> UserExists(int id)

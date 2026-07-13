@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using UserManagerApi.Data;
+using UserManagerApi.Interfaces;
 using UserManagerApi.Models;
 
 namespace UserManagerApi.Controllers;
@@ -11,17 +12,27 @@ public class CategoriesController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
 
-    public CategoriesController(ApplicationDbContext context)
+    private readonly ICategoryService _service;
+    public CategoriesController(
+    ApplicationDbContext context,
+    ICategoryService service)
     {
         _context = context;
+        _service = service;
     }
 
-    // Получить все категории
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<Category>>> GetCategories()
+    public async Task<IActionResult> Get()
     {
-        return await _context.Categories.ToListAsync();
+        return Ok(await _service.GetAllAsync());
     }
+
+    //// Получить все категории
+    //[HttpGet]
+    //public async Task<ActionResult<IEnumerable<Category>>> GetCategories()
+    //{
+    //    return await _context.Categories.ToListAsync();
+    //}
 
     // Получить категорию по ID
     [HttpGet("{id}")]

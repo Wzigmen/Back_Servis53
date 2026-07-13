@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using UserManagerApi.Data;
+using UserManagerApi.Interfaces;
 using UserManagerApi.Models;
 
 namespace UserManagerApi.Controllers;
@@ -10,18 +11,27 @@ namespace UserManagerApi.Controllers;
 public class BrandsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
-
-    public BrandsController(ApplicationDbContext context)
+    private readonly IBrandService _service;
+    public BrandsController(
+    ApplicationDbContext context,
+    IBrandService service)
     {
         _context = context;
+        _service = service;
     }
 
-    // Получить все бренды
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<Brand>>> GetBrands()
+    public async Task<IActionResult> Get()
     {
-        return await _context.Brands.ToListAsync();
+        return Ok(await _service.GetAllAsync());
     }
+
+    //// Получить все бренды
+    //[HttpGet]
+    //public async Task<ActionResult<IEnumerable<Brand>>> GetBrands()
+    //{
+    //    return await _context.Brands.ToListAsync();
+    //}
 
     // Получить бренд по ID
     [HttpGet("{id}")]

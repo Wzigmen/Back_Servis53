@@ -68,23 +68,40 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("VuePolicy", policy =>
+    {
+        policy.WithOrigins("http://localhost:5173")
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
+
 builder.Services.AddAuthorization();
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(
         builder.Configuration.GetConnectionString("DefaultConnection")));
 
+builder.Services.AddScoped<IProductService, ProductService>();
+builder.Services.AddScoped<IAdminProductService, AdminProductService>();
+
+builder.Services.AddScoped<ICategoryService, CategoryService>();
+builder.Services.AddScoped<IBrandService, BrandService>();
 
 // Запросы
 var app = builder.Build();
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseCors("VuePolicy");
 
 app.UseSwagger();
 app.UseSwaggerUI();
 
 app.MapControllers();
 app.UseHttpsRedirection();
+app.UseStaticFiles();
 
 app.Run();

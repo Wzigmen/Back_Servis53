@@ -42,7 +42,8 @@ public class AuthService : IAuthService
             FullName = dto.FullName,
             RoleId = userRole.Id,
             CreatedAt = DateTime.UtcNow,
-            IsActive = true
+            IsActive = true,
+            Avatar = null
         };
 
         _context.Users.Add(user);
@@ -94,9 +95,10 @@ public class AuthService : IAuthService
         {
             Id = user.Id,
             Login = user.Login,
-            Email = user.Email ?? "",
-            FullName = user.FullName ?? "",
-            Role = user.Role!.RoleName
+            Email = user.Email,
+            FullName = user.FullName,
+            Role = user.Role.RoleName,
+            Avatar = user.Avatar
         };
     }
 }

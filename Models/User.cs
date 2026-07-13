@@ -39,4 +39,7 @@ public class User
 
     [Column("is_active")]
     public bool IsActive { get; set; }
+
+    [Column("avatar")]
+    public string? Avatar { get; set; }
 }

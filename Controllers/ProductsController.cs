@@ -1,7 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using UserManagerApi.Data;
-using UserManagerApi.Models;
+using UserManagerApi.DTO;
+using UserManagerApi.Interfaces;
 
 namespace UserManagerApi.Controllers;
 
@@ -9,124 +8,46 @@ namespace UserManagerApi.Controllers;
 [Route("api/[controller]")]
 public class ProductsController : ControllerBase
 {
-    private readonly ApplicationDbContext _context;
+    private readonly IProductService _service;
 
-    public ProductsController(ApplicationDbContext context)
+    public ProductsController(IProductService service)
     {
-        _context = context;
+        _service = service;
     }
 
-    // Получить товары с поиском, фильтрацией, сортировкой и пагинацией
     [HttpGet]
-    public async Task<IActionResult> GetProducts(
-        string? search,
-        int? categoryId,
-        int? brandId,
-        string? sort,
-        int page = 1,
-        int pageSize = 10)
+    public async Task<IActionResult> Get([FromQuery] ProductFilterDto filter)
     {
-        var query = _context.Products
-            .Include(p => p.Category)
-            .Include(p => p.Brand)
-            .AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(search))
-            query = query.Where(p => p.Name.ToLower().Contains(search.ToLower()));
-
-        if (categoryId.HasValue)
-            query = query.Where(p => p.CategoryId == categoryId);
-
-        if (brandId.HasValue)
-            query = query.Where(p => p.BrandId == brandId);
-
-        query = sort switch
-        {
-            "price_asc" => query.OrderBy(p => p.Price),
-            "price_desc" => query.OrderByDescending(p => p.Price),
-            "name" => query.OrderBy(p => p.Name),
-            _ => query.OrderByDescending(p => p.CreatedAt)
-        };
-
-        var total = await query.CountAsync();
-
-        var products = await query
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .Select(p => new
-            {
-                p.Id,
-                p.Name,
-                p.Description,
-                p.Price,
-                p.Quantity,
-                p.Image,
-                p.WarrantyMonths,
-                Category = p.Category!.Name,
-                Brand = p.Brand!.Name
-            })
-            .ToListAsync();
-
-        return Ok(new
-        {
-            Total = total,
-            Page = page,
-            PageSize = pageSize,
-            Products = products
-        });
+        return Ok(await _service.GetProductsAsync(filter));
     }
 
-    // Получить товар
     [HttpGet("{id}")]
-    public async Task<IActionResult> GetProduct(int id)
+    public async Task<IActionResult> GetById(int id)
     {
-        var product = await _context.Products
-            .Include(p => p.Category)
-            .Include(p => p.Brand)
-            .FirstOrDefaultAsync(p => p.Id == id);
+        var product = await _service.GetByIdAsync(id);
 
         if (product == null)
             return NotFound();
 
         return Ok(product);
     }
-
-    // Добавить товар
     [HttpPost]
-    public async Task<IActionResult> CreateProduct(Product product)
+    public async Task<IActionResult> Create(ProductCreateDto dto)
     {
-        _context.Products.Add(product);
-        await _context.SaveChangesAsync();
+        var id = await _service.CreateAsync(dto);
 
-        return CreatedAtAction(nameof(GetProduct), new { id = product.Id }, product);
+        return Ok(new
+        {
+            id
+        });
     }
-
-    // Обновить товар
-    [HttpPut("{id}")]
-    public async Task<IActionResult> UpdateProduct(int id, Product product)
+    [HttpPost("{id}/images")]
+    public async Task<IActionResult> UploadImages(
+    int id,
+    List<IFormFile> files)
     {
-        if (id != product.Id)
-            return BadRequest();
+        await _service.UploadImagesAsync(id, files);
 
-        _context.Entry(product).State = EntityState.Modified;
-
-        await _context.SaveChangesAsync();
-
-        return NoContent();
-    }
-
-    // Удалить товар
-    [HttpDelete("{id}")]
-    public async Task<IActionResult> DeleteProduct(int id)
-    {
-        var product = await _context.Products.FindAsync(id);
-
-        if (product == null)
-            return NotFound();
-
-        _context.Products.Remove(product);
-        await _context.SaveChangesAsync();
-
-        return NoContent();
+        return Ok();
     }
 }
