@@ -8,4 +8,8 @@ public interface IProductService
     Task<ProductDetailDto?> GetByIdAsync(int id);
     Task<int> CreateAsync(ProductCreateDto dto);
     Task UploadImagesAsync(int productId, List<IFormFile> files);
+    Task CreatePhoneSpecAsync(
+    int productId,
+    PhoneSpecCreateDto dto );
+    Task DeleteAsync(int id);
 }

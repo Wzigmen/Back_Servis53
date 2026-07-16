@@ -283,6 +283,7 @@ public class ProductService : IProductService
     }
     public async Task UploadImagesAsync(int productId, List<IFormFile> files)
     {
+        Console.WriteLine("=== UploadImagesAsync ===");
         var folder = Path.Combine(
             _environment.WebRootPath,
             "images",
@@ -311,6 +312,80 @@ public class ProductService : IProductService
                 SortOrder = sort++
             });
         }
+
+        await _context.SaveChangesAsync();
+    }
+    public async Task CreatePhoneSpecAsync(
+    int productId,
+    PhoneSpecCreateDto dto)
+    {
+        var spec = new PhoneSpec
+        {
+            ProductId = productId,
+
+            ScreenSize = dto.ScreenSize,
+
+            Resolution = dto.Resolution,
+
+            Processor = dto.Processor,
+
+            Ram = dto.Ram,
+
+            Storage = dto.Storage,
+
+            RearCamera = dto.RearCamera,
+
+            FrontCamera = dto.FrontCamera,
+
+            Battery = dto.Battery,
+
+            OperatingSystem = dto.OperatingSystem,
+
+            SimType = dto.SimType,
+
+            Network = dto.Network
+        };
+
+        _context.PhoneSpecs.Add(spec);
+
+        await _context.SaveChangesAsync();
+    }
+    public async Task DeleteAsync(int id)
+    {
+        var product = await _context.Products
+            .Include(x => x.Images)
+            .FirstOrDefaultAsync(x => x.Id == id);
+
+        if (product == null)
+            return;
+
+        // удалить фотографии с диска
+
+        var folder = Path.Combine(
+            _environment.WebRootPath,
+            "images",
+            "products",
+            id.ToString()
+        );
+
+        if (Directory.Exists(folder))
+            Directory.Delete(folder, true);
+
+        // удалить записи фотографий
+
+        _context.ProductImages.RemoveRange(product.Images);
+
+        // удалить характеристики
+
+        var phone = await _context.PhoneSpecs
+            .FirstOrDefaultAsync(x => x.ProductId == id);
+
+        if (phone != null)
+            _context.PhoneSpecs.Remove(phone);
+
+        // потом сам товар
+
+        _context.Products.Remove(product);
 
         await _context.SaveChangesAsync();
     }

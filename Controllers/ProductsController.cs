@@ -42,12 +42,29 @@ public class ProductsController : ControllerBase
         });
     }
     [HttpPost("{id}/images")]
-    public async Task<IActionResult> UploadImages(
-    int id,
-    List<IFormFile> files)
+    public async Task<IActionResult> UploadImages(int id, [FromForm] List<IFormFile> files)
     {
         await _service.UploadImagesAsync(id, files);
 
         return Ok();
+    }
+
+    // Создание спецификации продукта
+    [HttpPost("{id}/phone")]
+    public async Task<IActionResult> CreatePhoneSpec(
+    int id,
+    PhoneSpecCreateDto dto)
+    {
+        await _service.CreatePhoneSpecAsync(id, dto);
+
+        return Ok();
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        await _service.DeleteAsync(id);
+
+        return NoContent();
     }
 }

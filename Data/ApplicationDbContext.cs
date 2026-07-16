@@ -111,4 +111,6 @@ public class ApplicationDbContext : DbContext
     public DbSet<LaptopSpec> LaptopSpecs { get; set; }
     public DbSet<PcSpec> PcSpecs { get; set; }
     public DbSet<HeadphoneSpec> HeadphoneSpecs { get; set; }
+    public DbSet<Cart> Carts => Set<Cart>();
+    public DbSet<CartItem> CartItems => Set<CartItem>();
 }

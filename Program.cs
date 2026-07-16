@@ -89,6 +89,7 @@ builder.Services.AddScoped<IAdminProductService, AdminProductService>();
 
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<IBrandService, BrandService>();
+builder.Services.AddScoped<ICartService, CartService>();
 
 // Запросы
 var app = builder.Build();
