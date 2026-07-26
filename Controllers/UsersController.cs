@@ -23,9 +23,31 @@ public class UsersController : ControllerBase
 
     // Получить всех пользователей
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<User>>> GetUsers()
+    public async Task<IActionResult> GetUsers()
     {
-        return await _context.Users.ToListAsync();
+        var users = await _context.Users
+
+    .Include(x => x.Role)
+
+    .Select(x => new
+    {
+        x.Id,
+        x.FullName,
+        x.Login,
+        x.Email,
+        x.Phone,
+
+        Role = x.Role != null ? x.Role.RoleName : "Без роли",
+
+        RoleId = x.RoleId,
+
+        x.Avatar,
+        x.CreatedAt
+    })
+
+    .ToListAsync();
+
+        return Ok(users);
     }
 
     // Получить пользователя по ID
@@ -137,6 +159,32 @@ public class UsersController : ControllerBase
         return Ok(new
         {
             avatar = fileName
+        });
+    }
+
+    [HttpPut("{id}/role")]
+    public async Task<IActionResult> UpdateUserRole(
+    int id,
+    [FromBody] int roleId
+)
+    {
+        var user = await _context.Users
+            .FirstOrDefaultAsync(x => x.Id == id);
+
+
+        if (user == null)
+            return NotFound("Пользователь не найден");
+
+
+        user.RoleId = roleId;
+
+
+        await _context.SaveChangesAsync();
+
+
+        return Ok(new
+        {
+            message = "Роль изменена"
         });
     }
 

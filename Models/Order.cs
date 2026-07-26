@@ -13,6 +13,9 @@ public class Order
     [Column("user_id")]
     public int? UserId { get; set; }
 
+    [ForeignKey(nameof(UserId))]
+    public User? User { get; set; }
+
     [Column("status")]
     public string? Status { get; set; }
 

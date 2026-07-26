@@ -101,7 +101,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<OrderItem> OrderItems { get; set; }
     public DbSet<Repair> Repairs { get; set; }
     public DbSet<Review> Reviews { get; set; }
-    public DbSet<Favorite> Favorites { get; set; }
+    // public DbSet<Favorite> Favorites { get; set; }
     public DbSet<News> News { get; set; }
     public DbSet<Message> Messages { get; set; }
     public DbSet<RepairHistory> RepairHistory { get; set; }
@@ -113,4 +113,5 @@ public class ApplicationDbContext : DbContext
     public DbSet<HeadphoneSpec> HeadphoneSpecs { get; set; }
     public DbSet<Cart> Carts => Set<Cart>();
     public DbSet<CartItem> CartItems => Set<CartItem>();
+    public DbSet<Favorite> Favorites => Set<Favorite>();
 }

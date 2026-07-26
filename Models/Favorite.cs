@@ -15,4 +15,10 @@ public class Favorite
 
     [Column("product_id")]
     public int ProductId { get; set; }
+
+    [Column("created_at")]
+    public DateTime CreatedAt { get; set; }
+
+    public User User { get; set; } = null!;
+    public Product Product { get; set; } = null!;
 }

@@ -11,7 +11,7 @@ public class Repair
     public int Id { get; set; }
 
     [Column("user_id")]
-    public int UserId { get; set; }
+    public int? UserId { get; set; }
 
     [Column("device_type")]
     public string? DeviceType { get; set; }
@@ -36,4 +36,16 @@ public class Repair
 
     [Column("date_finished")]
     public DateTime? DateFinished { get; set; }
+
+    [Column("client_name")]
+    public string? ClientName { get; set; }
+
+    [Column("client_phone")]
+    public string? ClientPhone { get; set; }
+
+    [Column("client_email")]
+    public string? ClientEmail { get; set; }
+
+    [ForeignKey(nameof(UserId))]
+    public User? User { get; set; }
 }

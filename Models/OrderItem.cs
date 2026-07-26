@@ -21,4 +21,10 @@ public class OrderItem
 
     [Column("price")]
     public decimal Price { get; set; }
+
+    [ForeignKey(nameof(ProductId))]
+    public Product Product { get; set; } = null!;
+
+    [ForeignKey(nameof(OrderId))]
+    public Order Order { get; set; } = null!;
 }

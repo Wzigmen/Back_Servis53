@@ -17,10 +17,14 @@ public class FavoritesController : ControllerBase
     }
 
     // Получить все избранные товары
-    [HttpGet]
-    public async Task<IActionResult> GetFavorites()
+    [HttpGet("{userId}")]
+    public async Task<IActionResult> GetFavorites(int userId)
     {
-        var favorites = await _context.Favorites.ToListAsync();
+        var favorites = await _context.Favorites
+            .Include(x => x.Product)
+            .Where(x => x.UserId == userId)
+            .ToListAsync();
+
         return Ok(favorites);
     }
 
@@ -37,24 +41,24 @@ public class FavoritesController : ControllerBase
 
     // Добавить товар в избранное
     [HttpPost]
-    public async Task<IActionResult> AddFavorite(Favorite favorite)
+    public async Task<IActionResult> Add(Favorite favorite)
     {
-        bool exists = await _context.Favorites.AnyAsync(f =>
-            f.UserId == favorite.UserId &&
-            f.ProductId == favorite.ProductId);
+        var exists = await _context.Favorites.AnyAsync(x =>
+            x.UserId == favorite.UserId &&
+            x.ProductId == favorite.ProductId);
 
         if (exists)
-            return BadRequest("Товар уже находится в избранном.");
+            return BadRequest("Уже в избранном");
 
         _context.Favorites.Add(favorite);
         await _context.SaveChangesAsync();
 
-        return Ok(favorite);
+        return Ok();
     }
 
     // Удалить товар из избранного
     [HttpDelete("{id}")]
-    public async Task<IActionResult> DeleteFavorite(int id)
+    public async Task<IActionResult> Delete(int id)
     {
         var favorite = await _context.Favorites.FindAsync(id);
 
@@ -65,6 +69,6 @@ public class FavoritesController : ControllerBase
 
         await _context.SaveChangesAsync();
 
-        return NoContent();
+        return Ok();
     }
 }

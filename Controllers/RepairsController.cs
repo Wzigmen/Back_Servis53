@@ -21,8 +21,33 @@ public class RepairsController : ControllerBase
     public async Task<IActionResult> GetRepairs()
     {
         var repairs = await _context.Repairs
+            .Include(r => r.User)
+            .Select(r => new
+            {
+                r.Id,
+
+                UserName = r.User.FullName,
+
+                UserPhone = r.User.Phone,
+
+                r.DeviceType,
+
+                r.Brand,
+
+                r.Model,
+
+                r.Problem,
+
+                r.Status,
+
+                r.Price,
+
+                r.DateCreated
+
+            })
             .OrderByDescending(r => r.DateCreated)
             .ToListAsync();
+
 
         return Ok(repairs);
     }

@@ -42,4 +42,6 @@ public class User
 
     [Column("avatar")]
     public string? Avatar { get; set; }
+
+    public ICollection<Order> Orders { get; set; } = new List<Order>();
 }
