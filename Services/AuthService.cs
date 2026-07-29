@@ -96,6 +96,7 @@ public class AuthService : IAuthService
             Id = user.Id,
             Login = user.Login,
             Email = user.Email,
+            Phone = user.Phone,
             FullName = user.FullName,
             Role = user.Role.RoleName,
             Avatar = user.Avatar

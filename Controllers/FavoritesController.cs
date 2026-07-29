@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using UserManagerApi.Data;
+using UserManagerApi.DTO;
 using UserManagerApi.Models;
 
 namespace UserManagerApi.Controllers;
@@ -20,12 +21,27 @@ public class FavoritesController : ControllerBase
     [HttpGet("{userId}")]
     public async Task<IActionResult> GetFavorites(int userId)
     {
-        var favorites = await _context.Favorites
-            .Include(x => x.Product)
+        var products = await _context.Favorites
             .Where(x => x.UserId == userId)
+            .Select(x => new
+            {
+                id = x.Product.Id,
+                name = x.Product.Name,
+                description = x.Product.Description,
+                price = x.Product.Price,
+                quantity = x.Product.Quantity,
+                warrantyMonths = x.Product.WarrantyMonths,
+                brand = x.Product.Brand.Name,
+                category = x.Product.Category.Name,
+
+                images = x.Product.Images
+                    .OrderBy(i => i.SortOrder)
+                    .Select(i => i.ImageName)
+                    .ToList()
+            })
             .ToListAsync();
 
-        return Ok(favorites);
+        return Ok(products);
     }
 
     // Получить избранное пользователя
@@ -41,26 +57,36 @@ public class FavoritesController : ControllerBase
 
     // Добавить товар в избранное
     [HttpPost]
-    public async Task<IActionResult> Add(Favorite favorite)
+    public async Task<IActionResult> Add(AddFavoriteDto dto)
     {
         var exists = await _context.Favorites.AnyAsync(x =>
-            x.UserId == favorite.UserId &&
-            x.ProductId == favorite.ProductId);
+            x.UserId == dto.UserId &&
+            x.ProductId == dto.ProductId);
 
         if (exists)
             return BadRequest("Уже в избранном");
 
+        var favorite = new Favorite
+        {
+            UserId = dto.UserId,
+            ProductId = dto.ProductId,
+            CreatedAt = DateTime.UtcNow
+        };
+
         _context.Favorites.Add(favorite);
+
         await _context.SaveChangesAsync();
 
         return Ok();
     }
 
     // Удалить товар из избранного
-    [HttpDelete("{id}")]
-    public async Task<IActionResult> Delete(int id)
+    [HttpDelete("{userId}/{productId}")]
+    public async Task<IActionResult> Delete(int userId, int productId)
     {
-        var favorite = await _context.Favorites.FindAsync(id);
+        var favorite = await _context.Favorites.FirstOrDefaultAsync(x =>
+            x.UserId == userId &&
+            x.ProductId == productId);
 
         if (favorite == null)
             return NotFound();
@@ -69,6 +95,6 @@ public class FavoritesController : ControllerBase
 
         await _context.SaveChangesAsync();
 
-        return Ok();
+        return NoContent();
     }
 }
