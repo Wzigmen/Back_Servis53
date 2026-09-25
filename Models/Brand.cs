@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace UserManagerApi.Models;
 
 [Table("brands")]
-public class Brand
+public class Brand : IEntity
 {
     [Key]
     [Column("id")]

@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace UserManagerApi.Models;
 
 [Table("messages")]
-public class Message
+public class Message : IEntity
 {
     [Key]
     [Column("id")]

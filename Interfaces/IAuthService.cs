@@ -1,4 +1,4 @@
-﻿using UserManagerApi.DTO;
+using UserManagerApi.DTO;
 
 namespace UserManagerApi.Interfaces;
 

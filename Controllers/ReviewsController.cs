@@ -1,6 +1,9 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using UserManagerApi.Data;
+using UserManagerApi.DTO;
+using UserManagerApi.Helpers;
 using UserManagerApi.Models;
 
 namespace UserManagerApi.Controllers;
@@ -16,34 +19,30 @@ public class ReviewsController : ControllerBase
         _context = context;
     }
 
-    // Получить все отзывы
     [HttpGet]
     public async Task<IActionResult> GetReviews()
     {
         var reviews = await _context.Reviews
+            .AsNoTracking()
             .OrderByDescending(r => r.CreatedAt)
             .ToListAsync();
 
         return Ok(reviews);
     }
 
-    // Получить отзыв по ID
-    [HttpGet("{id}")]
+    [HttpGet("{id:int}")]
     public async Task<IActionResult> GetReview(int id)
     {
         var review = await _context.Reviews.FindAsync(id);
 
-        if (review == null)
-            return NotFound("Отзыв не найден.");
-
-        return Ok(review);
+        return review == null ? NotFound("Отзыв не найден.") : Ok(review);
     }
 
-    // Получить отзывы товара
-    [HttpGet("product/{productId}")]
+    [HttpGet("product/{productId:int}")]
     public async Task<IActionResult> GetProductReviews(int productId)
     {
         var reviews = await _context.Reviews
+            .AsNoTracking()
             .Where(r => r.ProductId == productId)
             .OrderByDescending(r => r.CreatedAt)
             .ToListAsync();
@@ -51,11 +50,15 @@ public class ReviewsController : ControllerBase
         return Ok(reviews);
     }
 
-    // Получить отзывы пользователя
-    [HttpGet("user/{userId}")]
-    public async Task<IActionResult> GetUserReviews(int userId)
+    // Отзывы текущего пользователя
+    [HttpGet("my")]
+    [Authorize]
+    public async Task<IActionResult> GetMyReviews()
     {
+        var userId = User.GetUserId();
+
         var reviews = await _context.Reviews
+            .AsNoTracking()
             .Where(r => r.UserId == userId)
             .OrderByDescending(r => r.CreatedAt)
             .ToListAsync();
@@ -63,45 +66,63 @@ public class ReviewsController : ControllerBase
         return Ok(reviews);
     }
 
-    // Добавить отзыв
     [HttpPost]
-    public async Task<IActionResult> CreateReview(Review review)
+    [Authorize]
+    public async Task<IActionResult> CreateReview(ReviewCreateDto dto)
     {
-        review.CreatedAt = DateTime.UtcNow;
+        if (!await _context.Products.AnyAsync(p => p.Id == dto.ProductId))
+            return NotFound("Товар не найден.");
+
+        var review = new Review
+        {
+            UserId = User.GetUserId(),
+            ProductId = dto.ProductId,
+            Rating = dto.Rating,
+            Comment = dto.Comment,
+            CreatedAt = DateTime.UtcNow
+        };
 
         _context.Reviews.Add(review);
+
         await _context.SaveChangesAsync();
 
-        return CreatedAtAction(nameof(GetReview),
-            new { id = review.Id }, review);
+        return CreatedAtAction(nameof(GetReview), new { id = review.Id }, review);
     }
 
-    // Изменить отзыв
-    [HttpPut("{id}")]
-    public async Task<IActionResult> UpdateReview(int id, Review review)
+    // Изменить отзыв может автор или админ
+    [HttpPut("{id:int}")]
+    [Authorize]
+    public async Task<IActionResult> UpdateReview(int id, ReviewCreateDto dto)
     {
-        if (id != review.Id)
-            return BadRequest();
+        var review = await _context.Reviews.FindAsync(id);
 
-        _context.Entry(review).State = EntityState.Modified;
+        if (review == null || !CanEdit(review))
+            return NotFound("Отзыв не найден.");
+
+        review.Rating = dto.Rating;
+        review.Comment = dto.Comment;
 
         await _context.SaveChangesAsync();
 
         return NoContent();
     }
 
-    // Удалить отзыв
-    [HttpDelete("{id}")]
+    [HttpDelete("{id:int}")]
+    [Authorize]
     public async Task<IActionResult> DeleteReview(int id)
     {
         var review = await _context.Reviews.FindAsync(id);
 
-        if (review == null)
-            return NotFound();
+        if (review == null || !CanEdit(review))
+            return NotFound("Отзыв не найден.");
 
         _context.Reviews.Remove(review);
+
         await _context.SaveChangesAsync();
 
         return NoContent();
     }
+
+    private bool CanEdit(Review review) =>
+        User.IsAdmin() || review.UserId == User.GetUserId();
 }

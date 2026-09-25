@@ -1,15 +1,19 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using UserManagerApi.Data;
-using UserManagerApi.DTO;
+using UserManagerApi.Helpers;
 using UserManagerApi.Models;
 
 namespace UserManagerApi.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class OrdersController : ControllerBase
 {
+    public static readonly string[] Statuses = ["Новый", "В работе", "Выполнен", "Отменён"];
+
     private readonly ApplicationDbContext _context;
 
     public OrdersController(ApplicationDbContext context)
@@ -17,178 +21,50 @@ public class OrdersController : ControllerBase
         _context = context;
     }
 
-    // Все заказы
+    private int UserId => User.GetUserId()!.Value;
+
+    // Все заказы (админка)
     [HttpGet]
+    [Authorize(Roles = Roles.Admin)]
     public async Task<IActionResult> GetOrders()
     {
         var orders = await _context.Orders
-
-            .Include(x => x.User)
-
+            .AsNoTracking()
+            .OrderByDescending(x => x.OrderDate)
             .Select(x => new
             {
                 x.Id,
                 x.Status,
                 x.TotalPrice,
                 x.OrderDate,
-
-                UserId = x.UserId,
-                UserName = x.User.FullName,
+                x.UserId,
+                UserName = x.User!.FullName,
                 UserPhone = x.User.Phone,
                 UserEmail = x.User.Email
             })
-
-            .OrderByDescending(x => x.OrderDate)
-
             .ToListAsync();
 
         return Ok(orders);
     }
 
-    // Заказ по ID
-    [HttpGet("{id}")]
-    public async Task<IActionResult> GetOrder(int id)
+    // Заказы текущего пользователя вместе с товарами
+    [HttpGet("my")]
+    public async Task<IActionResult> GetMyOrders()
     {
-        var order = await _context.Orders
-            .FirstOrDefaultAsync(o => o.Id == id);
+        var userId = UserId;
 
-        if (order == null)
-            return NotFound("Заказ не найден.");
-
-        return Ok(order);
-    }
-
-    // Заказы пользователя
-    [HttpGet("user/{userId}")]
-    public async Task<IActionResult> GetUserOrders(int userId)
-    {
         var orders = await _context.Orders
-            .Where(o => o.UserId == userId)
-            .OrderByDescending(o => o.OrderDate)
-            .ToListAsync();
-
-        return Ok(orders);
-    }
-
-    // Создать заказ
-    [HttpPost]
-    public async Task<IActionResult> CreateOrder(Order order)
-    {
-        order.OrderDate = DateTime.UtcNow;
-
-        _context.Orders.Add(order);
-        await _context.SaveChangesAsync();
-
-        return CreatedAtAction(nameof(GetOrder), new { id = order.Id }, order);
-    }
-
-    // Изменить статус заказа
-    [HttpPatch("{id}/status")]
-    public async Task<IActionResult> UpdateStatus(int id, [FromBody] string status)
-    {
-        var order = await _context.Orders.FindAsync(id);
-
-        if (order == null)
-            return NotFound("Заказ не найден.");
-
-        order.Status = status;
-
-        await _context.SaveChangesAsync();
-
-        return Ok(order);
-    }
-
-    // Обновить заказ полностью
-    [HttpPut("{id}")]
-    public async Task<IActionResult> UpdateOrder(int id, Order order)
-    {
-        if (id != order.Id)
-            return BadRequest();
-
-        _context.Entry(order).State = EntityState.Modified;
-
-        await _context.SaveChangesAsync();
-
-        return NoContent();
-    }
-
-    // Удалить заказ
-    [HttpDelete("{id}")]
-    public async Task<IActionResult> DeleteOrder(int id)
-    {
-        var order = await _context.Orders.FindAsync(id);
-
-        if (order == null)
-            return NotFound();
-
-        _context.Orders.Remove(order);
-
-        await _context.SaveChangesAsync();
-
-        return NoContent();
-    }
-    [HttpPost("checkout")]
-    public async Task<IActionResult> Checkout(CreateOrderDto dto)
-    {
-        var cartItems = await _context.CartItems
-            .Include(x => x.Product)
-            .Include(x => x.Cart)
-            .Where(x => x.Cart.UserId == dto.UserId)
-            .ToListAsync();
-
-        if (!cartItems.Any())
-            return BadRequest("Корзина пуста");
-
-        var order = new Order
-        {
-            UserId = dto.UserId,
-            Status = "Новый",
-            OrderDate = DateTime.UtcNow,
-            TotalPrice = cartItems.Sum(x => x.Quantity * x.Product!.Price)
-        };
-
-        _context.Orders.Add(order);
-
-        await _context.SaveChangesAsync();
-
-        foreach (var item in cartItems)
-        {
-            _context.OrderItems.Add(new OrderItem
-            {
-                OrderId = order.Id,
-                ProductId = item.ProductId,
-                Quantity = item.Quantity,
-                Price = item.Product!.Price
-            });
-        }
-
-        _context.CartItems.RemoveRange(cartItems);
-
-        await _context.SaveChangesAsync();
-
-        return Ok(order);
-    }
-
-    [HttpGet("user/{userId}/details")]
-    public async Task<IActionResult> GetUserOrdersDetails(int userId)
-    {
-        var orders = await _context.Orders
-
+            .AsNoTracking()
             .Where(x => x.UserId == userId)
-
             .OrderByDescending(x => x.OrderDate)
-
             .Select(x => new
             {
                 x.Id,
                 x.Status,
                 x.TotalPrice,
                 x.OrderDate,
-
                 Items = _context.OrderItems
-
                     .Where(i => i.OrderId == x.Id)
-
                     .Select(i => new
                     {
                         i.ProductId,
@@ -196,32 +72,34 @@ public class OrdersController : ControllerBase
                         i.Quantity,
                         i.Price
                     })
-
                     .ToList()
             })
-
             .ToListAsync();
 
         return Ok(orders);
     }
-    [HttpGet("{id}/details")]
-    public async Task<IActionResult> GetOrderDetails(int id)
+
+    // Подробности заказа: владелец или админ
+    [HttpGet("{id:int}")]
+    public async Task<IActionResult> GetOrder(int id)
     {
         var order = await _context.Orders
+            .AsNoTracking()
             .Include(o => o.User)
             .FirstOrDefaultAsync(o => o.Id == id);
 
-        if (order == null)
-            return NotFound();
+        if (order == null || (order.UserId != UserId && !User.IsAdmin()))
+            return NotFound("Заказ не найден.");
 
         var items = await _context.OrderItems
+            .AsNoTracking()
             .Where(i => i.OrderId == id)
-            .Include(i => i.Product)
             .Select(i => new
             {
+                i.ProductId,
                 ProductName = i.Product.Name,
-                Quantity = i.Quantity,
-                Price = i.Price
+                i.Quantity,
+                i.Price
             })
             .ToListAsync();
 
@@ -231,12 +109,101 @@ public class OrdersController : ControllerBase
             order.Status,
             order.TotalPrice,
             order.OrderDate,
-
-            FullName = order.User.FullName,
-            Email = order.User.Email,
-            Phone = order.User.Phone,
-
+            FullName = order.User?.FullName,
+            Email = order.User?.Email,
+            Phone = order.User?.Phone,
             Items = items
         });
+    }
+
+    // Оформить заказ из корзины текущего пользователя
+    [HttpPost("checkout")]
+    public async Task<IActionResult> Checkout()
+    {
+        var userId = UserId;
+
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+
+        var cartItems = await _context.CartItems
+            .Include(x => x.Product)
+            .Where(x => x.Cart.UserId == userId)
+            .ToListAsync();
+
+        if (cartItems.Count == 0)
+            return BadRequest("Корзина пуста.");
+
+        var notEnough = cartItems.FirstOrDefault(x => x.Quantity > x.Product.Quantity);
+
+        if (notEnough != null)
+            return BadRequest($"Товара «{notEnough.Product.Name}» в наличии только {notEnough.Product.Quantity} шт.");
+
+        var order = new Order
+        {
+            UserId = userId,
+            Status = Statuses[0],
+            OrderDate = DateTime.UtcNow,
+            TotalPrice = cartItems.Sum(x => x.Quantity * x.Product.Price)
+        };
+
+        _context.Orders.Add(order);
+
+        foreach (var item in cartItems)
+        {
+            _context.OrderItems.Add(new OrderItem
+            {
+                Order = order,
+                ProductId = item.ProductId,
+                Quantity = item.Quantity,
+                Price = item.Product.Price
+            });
+
+            // списываем со склада
+            item.Product.Quantity -= item.Quantity;
+        }
+
+        _context.CartItems.RemoveRange(cartItems);
+
+        await _context.SaveChangesAsync();
+        await transaction.CommitAsync();
+
+        return Ok(new { order.Id, order.Status, order.TotalPrice, order.OrderDate });
+    }
+
+    // Изменить статус заказа
+    [HttpPatch("{id:int}/status")]
+    [Authorize(Roles = Roles.Admin)]
+    public async Task<IActionResult> UpdateStatus(int id, [FromBody] string status)
+    {
+        if (!Statuses.Contains(status))
+            return BadRequest("Неизвестный статус.");
+
+        var order = await _context.Orders.FindAsync(id);
+
+        if (order == null)
+            return NotFound("Заказ не найден.");
+
+        order.Status = status;
+
+        await _context.SaveChangesAsync();
+
+        return Ok(new { order.Id, order.Status });
+    }
+
+    // Удалить заказ вместе с позициями
+    [HttpDelete("{id:int}")]
+    [Authorize(Roles = Roles.Admin)]
+    public async Task<IActionResult> DeleteOrder(int id)
+    {
+        var order = await _context.Orders.FindAsync(id);
+
+        if (order == null)
+            return NotFound("Заказ не найден.");
+
+        _context.OrderItems.RemoveRange(_context.OrderItems.Where(x => x.OrderId == id));
+        _context.Orders.Remove(order);
+
+        await _context.SaveChangesAsync();
+
+        return NoContent();
     }
 }

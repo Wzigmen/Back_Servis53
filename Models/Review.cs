@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace UserManagerApi.Models;
@@ -10,17 +10,15 @@ public class Review
     [Column("id")]
     public int Id { get; set; }
 
+    // В таблице reviews нет колонки order_id, поэтому поля OrderId здесь нет
     [Column("user_id")]
-    public int UserId { get; set; }
+    public int? UserId { get; set; }
 
     [Column("product_id")]
-    public int ProductId { get; set; }
-
-    [Column("order_id")]
-    public int OrderId { get; set; }
+    public int? ProductId { get; set; }
 
     [Column("rating")]
-    public int Rating { get; set; }
+    public int? Rating { get; set; }
 
     [Column("comment")]
     public string? Comment { get; set; }

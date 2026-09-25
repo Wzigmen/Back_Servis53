@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace UserManagerApi.Models;
 
 [Table("repairhistory")]
-public class RepairHistory
+public class RepairHistory : IEntity
 {
     [Key]
     [Column("id")]

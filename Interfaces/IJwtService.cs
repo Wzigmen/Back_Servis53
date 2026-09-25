@@ -1,9 +1,8 @@
-﻿using UserManagerApi.Models;
+using UserManagerApi.Models;
 
-namespace UserManagerApi.Interfaces
+namespace UserManagerApi.Interfaces;
+
+public interface IJwtService
 {
-    public interface IJwtService
-    {
-        string GenerateToken(User user, string role);
-    }
+    string GenerateToken(User user, string role);
 }

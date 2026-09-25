@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using UserManagerApi.Data;
 using UserManagerApi.DTO;
 using UserManagerApi.Interfaces;
@@ -15,145 +15,124 @@ public class CartService : ICartService
         _context = context;
     }
 
-    public async Task AddToCartAsync(int userId, AddToCartDto dto)
+    public async Task<string?> AddToCartAsync(int userId, AddToCartDto dto)
     {
-        // ищем корзину пользователя
+        if (dto.Quantity <= 0)
+            return "Количество должно быть больше нуля.";
 
-        var cart = await _context.Carts
+        var product = await _context.Products.FindAsync(dto.ProductId);
 
-            .Include(x => x.Items)
+        if (product == null)
+            return "Товар не найден.";
 
-            .FirstOrDefaultAsync(x => x.UserId == userId);
+        var cart = await GetOrCreateCartAsync(userId);
 
-        // если нет — создаем
+        var item = cart.Items.FirstOrDefault(x => x.ProductId == dto.ProductId);
 
-        if (cart == null)
-        {
-            cart = new Cart
-            {
-                UserId = userId
-            };
+        var newQuantity = (item?.Quantity ?? 0) + dto.Quantity;
 
-            _context.Carts.Add(cart);
-
-            await _context.SaveChangesAsync();
-        }
-
-        // ищем товар в корзине
-
-        var item = await _context.CartItems
-
-            .FirstOrDefaultAsync(x =>
-
-                x.CartId == cart.Id &&
-                x.ProductId == dto.ProductId);
-
-        // если уже есть
+        if (newQuantity > product.Quantity)
+            return $"В наличии только {product.Quantity} шт.";
 
         if (item != null)
         {
-            item.Quantity += dto.Quantity;
+            item.Quantity = newQuantity;
         }
         else
         {
-            _context.CartItems.Add(new CartItem
+            cart.Items.Add(new CartItem
             {
-                CartId = cart.Id,
                 ProductId = dto.ProductId,
                 Quantity = dto.Quantity
             });
         }
 
         await _context.SaveChangesAsync();
+
+        return null;
     }
+
     public async Task<CartDto> GetCartAsync(int userId)
     {
-        var cart = await _context.Carts
+        var items = await _context.CartItems
+            .AsNoTracking()
+            .Where(x => x.Cart.UserId == userId)
+            .OrderBy(x => x.Id)
+            .Select(x => new CartItemDto
+            {
+                Id = x.Id,
+                ProductId = x.ProductId,
+                Name = x.Product.Name,
+                Price = x.Product.Price,
+                Quantity = x.Quantity,
+                Image = x.Product.Images
+                    .OrderBy(i => i.SortOrder)
+                    .Select(i => i.ImageName)
+                    .FirstOrDefault()
+            })
+            .ToListAsync();
 
-            .Include(x => x.Items)
-
-                .ThenInclude(x => x.Product)
-
-                    .ThenInclude(x => x.Images)
-
-            .FirstOrDefaultAsync(x => x.UserId == userId);
-
-        if (cart == null)
-            return new CartDto();
-
-        var dto = new CartDto();
-
-        dto.Items = cart.Items.Select(x => new CartItemDto
+        return new CartDto
         {
-            Id = x.Id,
-
-            ProductId = x.ProductId,
-
-            Name = x.Product.Name,
-
-            Price = x.Product.Price,
-
-            Quantity = x.Quantity,
-
-            Image = x.Product.Images
-                .OrderBy(i => i.SortOrder)
-                .Select(i => i.ImageName)
-                .FirstOrDefault()
-
-        }).ToList();
-
-        dto.Total = dto.Items.Sum(x => x.Price * x.Quantity);
-
-        return dto;
+            Items = items,
+            Total = items.Sum(x => x.Price * x.Quantity)
+        };
     }
-    public async Task UpdateQuantityAsync(
-    int userId,
-    int productId,
-    int quantity)
+
+    public async Task<string?> UpdateQuantityAsync(int userId, int productId, int quantity)
     {
-        var cart = await _context.Carts
-
-            .Include(x => x.Items)
-
-            .FirstAsync(x => x.UserId == userId);
-
-        var item = cart.Items.FirstOrDefault(x => x.ProductId == productId);
+        var item = await FindItemAsync(userId, productId);
 
         if (item == null)
-            return;
+            return null;
 
         if (quantity <= 0)
         {
-            cart.Items.Remove(item);
-
             _context.CartItems.Remove(item);
         }
         else
         {
+            if (quantity > item.Product.Quantity)
+                return $"В наличии только {item.Product.Quantity} шт.";
+
             item.Quantity = quantity;
         }
 
         await _context.SaveChangesAsync();
+
+        return null;
     }
-    public async Task RemoveAsync(
-    int userId,
-    int productId)
+
+    public async Task RemoveAsync(int userId, int productId)
     {
-        var cart = await _context.Carts
-
-            .Include(x => x.Items)
-
-            .FirstAsync(x => x.UserId == userId);
-
-        var item = cart.Items.FirstOrDefault(x => x.ProductId == productId);
+        var item = await FindItemAsync(userId, productId);
 
         if (item == null)
             return;
-
-        cart.Items.Remove(item);
 
         _context.CartItems.Remove(item);
 
         await _context.SaveChangesAsync();
     }
+
+    private async Task<Cart> GetOrCreateCartAsync(int userId)
+    {
+        var cart = await _context.Carts
+            .Include(x => x.Items)
+            .FirstOrDefaultAsync(x => x.UserId == userId);
+
+        if (cart != null)
+            return cart;
+
+        cart = new Cart { UserId = userId };
+
+        _context.Carts.Add(cart);
+
+        return cart;
+    }
+
+    private Task<CartItem?> FindItemAsync(int userId, int productId) =>
+        _context.CartItems
+            .Include(x => x.Product)
+            .FirstOrDefaultAsync(x => x.Cart.UserId == userId && x.ProductId == productId);
 }

@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace UserManagerApi.Models;
 
 [Table("adminlogs")]
-public class AdminLog
+public class AdminLog : IEntity
 {
     [Key]
     [Column("id")]

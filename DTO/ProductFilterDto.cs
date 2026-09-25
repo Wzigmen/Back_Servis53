@@ -1,7 +1,9 @@
-﻿namespace UserManagerApi.DTO;
+namespace UserManagerApi.DTO;
 
 public class ProductFilterDto
 {
+    public const int MaxPageSize = 100;
+
     public string? Search { get; set; }
     public int? CategoryId { get; set; }
     public int? BrandId { get; set; }

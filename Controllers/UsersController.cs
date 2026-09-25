@@ -1,195 +1,151 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Security.Claims;
 using UserManagerApi.Data;
-using UserManagerApi.Models;
+using UserManagerApi.DTO;
+using UserManagerApi.Helpers;
 
 namespace UserManagerApi.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class UsersController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
-    private readonly IWebHostEnvironment _environment;
+    private readonly ImageStorage _images;
 
-    public UsersController(ApplicationDbContext context, IWebHostEnvironment environment)
+    public UsersController(ApplicationDbContext context, ImageStorage images)
     {
         _context = context;
-        _environment = environment;
+        _images = images;
     }
 
-    // Получить всех пользователей
+    // Все пользователи (без паролей)
     [HttpGet]
+    [Authorize(Roles = Roles.Admin)]
     public async Task<IActionResult> GetUsers()
     {
         var users = await _context.Users
+            .AsNoTracking()
+            .Include(x => x.Role)
+            .OrderBy(x => x.Id)
+            .ToListAsync();
 
-    .Include(x => x.Role)
-
-    .Select(x => new
-    {
-        x.Id,
-        x.FullName,
-        x.Login,
-        x.Email,
-        x.Phone,
-
-        Role = x.Role != null ? x.Role.RoleName : "Без роли",
-
-        RoleId = x.RoleId,
-
-        x.Avatar,
-        x.CreatedAt
-    })
-
-    .ToListAsync();
-
-        return Ok(users);
+        return Ok(users.Select(UserDto.From));
     }
 
-    // Получить пользователя по ID
-    [HttpGet("{id}")]
-    public async Task<ActionResult<User>> GetUser(int id)
+    [HttpGet("{id:int}")]
+    [Authorize(Roles = Roles.Admin)]
+    public async Task<IActionResult> GetUser(int id)
     {
+        var user = await _context.Users
+            .AsNoTracking()
+            .Include(x => x.Role)
+            .FirstOrDefaultAsync(x => x.Id == id);
+
+        return user == null ? NotFound("Пользователь не найден.") : Ok(UserDto.From(user));
+    }
+
+    [HttpDelete("{id:int}")]
+    [Authorize(Roles = Roles.Admin)]
+    public async Task<IActionResult> DeleteUser(int id)
+    {
+        if (id == User.GetUserId())
+            return BadRequest("Нельзя удалить самого себя.");
+
         var user = await _context.Users.FindAsync(id);
 
         if (user == null)
             return NotFound("Пользователь не найден.");
 
-        return user;
-    }
-
-    // Создать пользователя
-    [HttpPost]
-    public async Task<ActionResult<User>> CreateUser(User user)
-    {
-        _context.Users.Add(user);
-        await _context.SaveChangesAsync();
-
-        return CreatedAtAction(nameof(GetUser), new { id = user.Id }, user);
-    }
-
-    // Изменить пользователя
-    [HttpPut("{id}")]
-    public async Task<IActionResult> UpdateUser(int id, User user)
-    {
-        if (id != user.Id)
-            return BadRequest("ID не совпадают.");
-
-        _context.Entry(user).State = EntityState.Modified;
+        // избранное удаляем сами (в БД нет каскада), корзина удалится каскадно
+        _context.Favorites.RemoveRange(_context.Favorites.Where(f => f.UserId == id));
+        _context.Users.Remove(user);
 
         try
         {
             await _context.SaveChangesAsync();
         }
-        catch (DbUpdateConcurrencyException)
+        catch (DbUpdateException)
         {
-            if (!await UserExists(id))
-                return NotFound("Пользователь не найден.");
-
-            throw;
+            return Conflict("У пользователя есть заказы, заявки или отзывы — удалить его нельзя.");
         }
+
+        _images.DeleteFile(_images.AvatarFolder(), user.Avatar);
 
         return NoContent();
     }
 
-    // Удалить пользователя
-    [HttpDelete("{id}")]
-    public async Task<IActionResult> DeleteUser(int id)
+    [HttpPut("{id:int}/role")]
+    [Authorize(Roles = Roles.Admin)]
+    public async Task<IActionResult> UpdateUserRole(int id, [FromBody] int roleId)
     {
+        if (id == User.GetUserId())
+            return BadRequest("Нельзя изменить собственную роль.");
+
         var user = await _context.Users.FindAsync(id);
 
         if (user == null)
             return NotFound("Пользователь не найден.");
 
-        _context.Users.Remove(user);
+        if (!await _context.Roles.AnyAsync(r => r.Id == roleId))
+            return BadRequest("Роль не найдена.");
+
+        user.RoleId = roleId;
+
         await _context.SaveChangesAsync();
 
-        return NoContent();
+        return Ok(new { message = "Роль изменена" });
     }
 
-    [HttpPost("avatar")]
-    [Authorize]
-    public async Task<IActionResult> UploadAvatar(IFormFile file)
+    // Редактирование своего профиля
+    [HttpPut("me")]
+    public async Task<IActionResult> UpdateProfile(UpdateProfileDto dto)
     {
-        if (file == null || file.Length == 0)
-            return BadRequest();
-
-        var userId = int.Parse(
-            User.FindFirstValue(ClaimTypes.NameIdentifier)!
-        );
-
-        var user = await _context.Users.FindAsync(userId);
+        var user = await _context.Users
+            .Include(x => x.Role)
+            .FirstOrDefaultAsync(x => x.Id == User.GetUserId());
 
         if (user == null)
             return NotFound();
 
-        var extension = Path.GetExtension(file.FileName);
+        user.FullName = dto.FullName?.Trim();
+        user.Email = string.IsNullOrWhiteSpace(dto.Email) ? null : dto.Email.Trim();
+        user.Phone = dto.Phone?.Trim();
 
-        var fileName = $"{userId}{extension}";
+        await _context.SaveChangesAsync();
 
-        var folder = Path.Combine(
-            _environment.WebRootPath,
-            "images",
-            "avatars"
-        );
+        return Ok(UserDto.From(user));
+    }
 
-        Directory.CreateDirectory(folder);
+    // Загрузка аватара текущим пользователем
+    [HttpPost("avatar")]
+    [RequestSizeLimit(ImageStorage.MaxFileSize + 1024 * 1024)]
+    public async Task<IActionResult> UploadAvatar(IFormFile file)
+    {
+        var error = ImageStorage.Validate(file);
 
-        var path = Path.Combine(folder, fileName);
+        if (error != null)
+            return BadRequest(error);
 
-        using (var stream = new FileStream(path, FileMode.Create))
-        {
-            await file.CopyToAsync(stream);
-        }
+        var user = await _context.Users.FindAsync(User.GetUserId());
+
+        if (user == null)
+            return NotFound();
+
+        var folder = _images.AvatarFolder();
+
+        // старый файл удаляем: при другом расширении он бы остался на диске
+        _images.DeleteFile(folder, user.Avatar);
+
+        // суффикс не даёт браузеру показывать старую картинку из кеша
+        var fileName = await _images.SaveAsync(file, folder, $"{user.Id}_{DateTime.UtcNow.Ticks}");
 
         user.Avatar = fileName;
 
         await _context.SaveChangesAsync();
 
-        // проверяем , что пользователь имеет claim
-        foreach (var claim in User.Claims)
-        {
-            Console.WriteLine($"{claim.Type} = {claim.Value}");
-        }
-
-        return Ok(new
-        {
-            avatar = fileName
-        });
-    }
-
-    [HttpPut("{id}/role")]
-    public async Task<IActionResult> UpdateUserRole(
-    int id,
-    [FromBody] int roleId
-)
-    {
-        var user = await _context.Users
-            .FirstOrDefaultAsync(x => x.Id == id);
-
-
-        if (user == null)
-            return NotFound("Пользователь не найден");
-
-
-        user.RoleId = roleId;
-
-
-        await _context.SaveChangesAsync();
-
-
-        return Ok(new
-        {
-            message = "Роль изменена"
-        });
-    }
-
-    private async Task<bool> UserExists(int id)
-    {
-        return await _context.Users.AnyAsync(e => e.Id == id);
+        return Ok(new { avatar = fileName });
     }
 }

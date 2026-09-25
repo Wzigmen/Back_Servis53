@@ -1,7 +1,7 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
 using UserManagerApi.DTO;
+using UserManagerApi.Helpers;
 using UserManagerApi.Interfaces;
 
 namespace UserManagerApi.Controllers;
@@ -20,13 +20,12 @@ public class AuthController : ControllerBase
     [HttpPost("register")]
     public async Task<IActionResult> Register(RegisterDto dto)
     {
-        var success = await _authService.RegisterAsync(dto);
-
-        if (!success)
+        if (!await _authService.RegisterAsync(dto))
             return BadRequest("Пользователь уже существует.");
 
         return Ok("Регистрация успешна.");
     }
+
     [HttpPost("login")]
     public async Task<IActionResult> Login(LoginDto dto)
     {
@@ -41,20 +40,18 @@ public class AuthController : ControllerBase
             user = result.User
         });
     }
+
     [Authorize]
     [HttpGet("me")]
     public async Task<IActionResult> Me()
     {
-        var id = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var id = User.GetUserId();
 
         if (id == null)
             return Unauthorized();
 
-        var user = await _authService.GetCurrentUserAsync(int.Parse(id));
+        var user = await _authService.GetCurrentUserAsync(id.Value);
 
-        if (user == null)
-            return NotFound();
-
-        return Ok(user);
+        return user == null ? Unauthorized() : Ok(user);
     }
 }

@@ -1,8 +1,10 @@
-﻿namespace UserManagerApi.DTO
+using System.ComponentModel.DataAnnotations;
+
+namespace UserManagerApi.DTO;
+
+// Пользователь берётся из токена, а не из тела запроса
+public class AddFavoriteDto
 {
-    public class AddFavoriteDto
-    {
-        public int UserId { get; set; }
-        public int ProductId { get; set; }
-    }
+    [Range(1, int.MaxValue)]
+    public int ProductId { get; set; }
 }
